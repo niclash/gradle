@@ -42,6 +42,7 @@ import org.gradle.api.logging.Logger;
 import org.gradle.api.logging.Logging;
 import org.gradle.api.logging.LoggingManager;
 import org.gradle.api.plugins.Convention;
+import org.gradle.api.plugins.ExtensionContainer;
 import org.gradle.api.plugins.PluginContainer;
 import org.gradle.api.tasks.Directory;
 import org.gradle.api.tasks.WorkResult;
@@ -62,8 +63,9 @@ import java.io.File;
 import java.net.URI;
 import java.util.*;
 
-import static java.util.Collections.*;
-import static org.gradle.util.GUtil.*;
+import static java.util.Collections.singletonMap;
+import static org.gradle.util.GUtil.addMaps;
+import static org.gradle.util.GUtil.isTrue;
 
 /**
  * @author Hans Dockter
@@ -103,7 +105,7 @@ public abstract class AbstractProject implements ProjectInternal, DynamicObjectA
     private FileResolver fileResolver;
     private FileOperations fileOperations;
 
-    private Factory<? extends AntBuilder> antBuilderFactory;
+    private Factory<AntBuilder> antBuilderFactory;
 
     private AntBuilder ant;
 
@@ -124,8 +126,6 @@ public abstract class AbstractProject implements ProjectInternal, DynamicObjectA
     private ConfigurationContainer configurationContainer;
 
     private ArtifactHandler artifactHandler;
-
-    private Factory<? extends RepositoryHandler> repositoryHandlerFactory;
 
     private RepositoryHandler repositoryHandler;
 
@@ -173,9 +173,8 @@ public abstract class AbstractProject implements ProjectInternal, DynamicObjectA
         taskContainer = services.newInstance(TaskContainerInternal.class);
         implicitTasksContainer = services.newInstance(TaskContainerInternal.class);
         fileOperations = services.get(FileOperations.class);
-        repositoryHandlerFactory = services.getFactory(RepositoryHandler.class);
         projectEvaluator = services.get(ProjectEvaluator.class);
-        repositoryHandler = repositoryHandlerFactory.create();
+        repositoryHandler = services.get(RepositoryHandler.class);
         configurationContainer = services.get(ConfigurationContainer.class);
         pluginContainer = services.get(PluginContainer.class);
         artifactHandler = services.get(ArtifactHandler.class);
@@ -193,10 +192,6 @@ public abstract class AbstractProject implements ProjectInternal, DynamicObjectA
         dynamicObjectHelper.addObject(taskContainer.getAsDynamicObject(), DynamicObjectHelper.Location.AfterConvention);
 
         evaluationListener.add(gradle.getProjectEvaluationBroadcaster());
-    }
-
-    public RepositoryHandler createRepositoryHandler() {
-        return repositoryHandlerFactory.create();
     }
 
     public ProjectInternal getRootProject() {
@@ -360,10 +355,6 @@ public abstract class AbstractProject implements ProjectInternal, DynamicObjectA
         return repositoryHandler;
     }
 
-    public Factory<? extends RepositoryHandler> getRepositoryHandlerFactory() {
-        return repositoryHandlerFactory;
-    }
-
     public ConfigurationContainer getConfigurations() {
         return configurationContainer;
     }
@@ -399,25 +390,6 @@ public abstract class AbstractProject implements ProjectInternal, DynamicObjectA
 
     public IProjectRegistry<ProjectInternal> getProjectRegistry() {
         return projectRegistry;
-    }
-
-    @Override
-    public boolean equals(Object o) {
-        if (this == o) {
-            return true;
-        }
-        if (o == null || getClass() != o.getClass()) {
-            return false;
-        }
-
-        AbstractProject that = (AbstractProject) o;
-
-        return path.equals(that.path);
-    }
-
-    @Override
-    public int hashCode() {
-        return path.hashCode();
     }
 
     public int depthCompare(Project otherProject) {
@@ -761,11 +733,11 @@ public abstract class AbstractProject implements ProjectInternal, DynamicObjectA
         this.taskContainer = taskContainer;
     }
 
-    public Factory<? extends AntBuilder> getAntBuilderFactory() {
+    public Factory<AntBuilder> getAntBuilderFactory() {
         return antBuilderFactory;
     }
 
-    public void setAntBuilderFactory(Factory<? extends AntBuilder> antBuilderFactory) {
+    public void setAntBuilderFactory(Factory<AntBuilder> antBuilderFactory) {
         this.antBuilderFactory = antBuilderFactory;
     }
 
@@ -964,7 +936,7 @@ public abstract class AbstractProject implements ProjectInternal, DynamicObjectA
         return classGenerator.newInstance(DefaultAutoCreateDomainObjectContainer.class, type, classGenerator);
     }
 
-    public <T> NamedDomainObjectContainer<T> container(Class<T> type, NamedDomainObjectFactory<? extends T> factory) {
+    public <T> NamedDomainObjectContainer<T> container(Class<T> type, NamedDomainObjectFactory<T> factory) {
         ClassGenerator classGenerator = getServices().get(ClassGenerator.class);
         return classGenerator.newInstance(DefaultAutoCreateDomainObjectContainer.class, type, classGenerator, factory);
     }
@@ -972,5 +944,9 @@ public abstract class AbstractProject implements ProjectInternal, DynamicObjectA
     public <T> NamedDomainObjectContainer<T> container(Class<T> type, Closure factoryClosure) {
         ClassGenerator classGenerator = getServices().get(ClassGenerator.class);
         return classGenerator.newInstance(DefaultAutoCreateDomainObjectContainer.class, type, classGenerator, factoryClosure);
+    }
+
+    public ExtensionContainer getExtensions() {
+        return getConvention();
     }
 }

@@ -1,5 +1,3 @@
-import org.gradle.api.internal.artifacts.dependencies.DefaultSelfResolvingDependency
-
 /*
  * Copyright 2010 the original author or authors.
  *
@@ -34,38 +32,26 @@ dependencies {
             'org.testng:testng:5.14.10'
 
     reports 'css3-pie:css3-pie:1.0beta3'
-    testCompile libraries.xmlunit
+    testCompile libraries.xmlunit, 'net.sourceforge.nekohtml:nekohtml:1.9.14'
 
     testCompile project(path: ':core', configuration: 'testFixtures')
     testRuntime project(path: ':core', configuration: 'testFixturesRuntime')
-    testFixtures sourceSets.test.classes
+    testFixtures sourceSets.test.output
 }
 
-task reportResources(type: Copy) {
-    from(configurations.reports)
-    into "${sourceSets.main.classesDir}/org/gradle/api/internal/tasks/testing/junit/report"
-}
+def generatedResourcesDir = "$buildDir/generated-resources/main"
+sourceSets.main.output.dir generatedResourcesDir, buildBy: 'reportResources'
 
-classes.dependsOn reportResources
 
-task ideResources(type: Copy) {
-    from(configurations.reports)
-    into "${ideDir}/resources/test/org/gradle/api/internal/tasks/testing/junit/report"
-}
-
-ide.dependsOn ideResources
-
-ideaModule {
-    dependsOn ideResources
-    scopes.TEST.plus.add(configurations.detachedConfiguration(new DefaultSelfResolvingDependency(files(new File(ideDir, "resources/test/")))))
-}
-
-eclipseClasspath {
-    dependsOn ideResources
-    plusConfigurations.add(configurations.detachedConfiguration(new DefaultSelfResolvingDependency(files(new File(ideDir, "resources/test/")))))
+task reportResources << {
+    copy {
+        from(configurations.reports)
+        into "$generatedResourcesDir/org/gradle/api/internal/tasks/testing/junit/report"
+    }
 }
 
 test {
     exclude 'org/gradle/api/internal/tasks/testing/junit/ATestClass*.*'
+    exclude 'org/gradle/api/internal/tasks/testing/junit/ABroken*TestClass*.*'
     jvmArgs '-Xms128m', '-Xmx256m', '-XX:+HeapDumpOnOutOfMemoryError'
 }

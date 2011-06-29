@@ -24,6 +24,7 @@ import org.gradle.initialization.BuildClientMetaData
 import org.gradle.logging.StyledTextOutputFactory
 import org.gradle.logging.internal.TestStyledTextOutput
 import spock.lang.Specification
+import org.gradle.groovy.scripts.ScriptSource
 
 class BuildExceptionReporterTest extends Specification {
     final TestStyledTextOutput output = new TestStyledTextOutput()
@@ -33,8 +34,8 @@ class BuildExceptionReporterTest extends Specification {
     final BuildExceptionReporter reporter = new BuildExceptionReporter(factory, startParameter, clientMetaData)
 
     def setup() {
-        _ * factory.create(BuildExceptionReporter.class, LogLevel.ERROR) >> output
-        _ * clientMetaData.describeCommand(!null, !null) >> { args -> args[0].append("[gradle ${args[1].join(' ')}]")}
+        factory.create(BuildExceptionReporter.class, LogLevel.ERROR) >> output
+        clientMetaData.describeCommand(!null, !null) >> { args -> args[0].append("[gradle ${args[1].join(' ')}]")}
     }
 
     def doesNothingWheBuildIsSuccessful() {
@@ -156,6 +157,32 @@ Run with {userinput}--stacktrace{normal} option to get the stack trace. Run with
 '''
     }
 
+    def showsStacktraceOfCauseOfLocationAwareException() {
+        startParameter.showStacktrace = ShowStacktrace.ALWAYS
+
+        Throwable exception = exception("<location>", "<message>", new GradleException('<failure>'))
+
+        expect:
+        reporter.buildFinished(result(exception))
+        output.value == '''
+{failure}FAILURE: {normal}{failure}Build failed with an exception.{normal}
+
+* Where:
+<location>
+
+* What went wrong:
+<message>
+Cause: <failure>
+
+* Try:
+Run with {userinput}--info{normal} or {userinput}--debug{normal} option to get more log output.
+
+* Exception is:
+org.gradle.api.GradleException: <failure>
+{stacktrace}
+'''
+    }
+
     def reportsTaskSelectionException() {
         Throwable exception = new TaskSelectionException("<message>");
 
@@ -237,18 +264,22 @@ org.gradle.api.GradleException: <message>
 
     def result(Throwable failure) {
         BuildResult result = Mock()
-        _ * result.failure >> failure
+        result.failure >> failure
         result
     }
 
     def exception(final String location, final String message, final Throwable... causes) {
         TestException exception = Mock()
-        _ * exception.location >> location
-        _ * exception.originalMessage >> message
-        _ * exception.reportableCauses >> (causes as List)
+        exception.location >> location
+        exception.originalMessage >> message
+        exception.reportableCauses >> (causes as List)
+        exception.cause >> causes[0]
         exception
     }
 }
 
-public abstract class TestException extends GradleException implements LocationAwareException {
+public abstract class TestException extends LocationAwareException {
+    TestException(Throwable cause, ScriptSource source, Integer lineNumber) {
+        super(cause, source, lineNumber)
+    }
 }

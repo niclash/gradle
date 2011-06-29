@@ -38,9 +38,10 @@ import java.io.File;
 import java.io.IOException;
 import java.text.ParseException;
 
-import static org.gradle.util.WrapUtil.*;
+import static org.gradle.util.WrapUtil.toLinkedSet;
+import static org.gradle.util.WrapUtil.toSet;
 import static org.hamcrest.Matchers.*;
-import static org.junit.Assert.*;
+import static org.junit.Assert.assertThat;
 
 @RunWith(JMock.class)
 public class SelfResolvingDependencyResolverTest {

@@ -45,6 +45,7 @@ public class CopySpecImpl implements CopySpec, ReadableCopySpec {
     private Integer dirMode;
     private Integer fileMode;
     private Boolean caseSensitive;
+    private Boolean includeEmptyDirs;
 
     private CopySpecImpl(FileResolver resolver, CopySpecImpl parentSpec) {
         this.parentSpec = parentSpec;
@@ -156,12 +157,25 @@ public class CopySpecImpl implements CopySpec, ReadableCopySpec {
             return parentPath;
         }
 
-        String path = destDir.toString();
+        String path = resolveToPath(destDir);
         if (path.startsWith("/") || path.startsWith(File.separator)) {
             return RelativePath.parse(false, path);
         }
 
         return RelativePath.parse(false, parentPath, path);
+    }
+
+    private String resolveToPath(Object destDir) {
+        Object value = destDir;
+        while (true) {
+            if (value instanceof Closure) {
+                Closure closure = (Closure) value;
+                value = closure.call();
+            } else {
+                break;
+            }
+        }
+        return value.toString();
     }
 
     public PatternSet getPatternSet() {
@@ -177,7 +191,8 @@ public class CopySpecImpl implements CopySpec, ReadableCopySpec {
     public boolean isCaseSensitive() {
         if (caseSensitive != null) {
             return caseSensitive;
-        } else if (parentSpec != null) {
+        }
+        if (parentSpec != null) {
             return parentSpec.isCaseSensitive();
         }
         return true;
@@ -185,6 +200,20 @@ public class CopySpecImpl implements CopySpec, ReadableCopySpec {
 
     public void setCaseSensitive(boolean caseSensitive) {
         this.caseSensitive = caseSensitive;
+    }
+
+    public boolean getIncludeEmptyDirs() {
+        if (includeEmptyDirs != null) {
+            return includeEmptyDirs;
+        }
+        if (parentSpec != null) {
+            return parentSpec.getIncludeEmptyDirs();
+        }
+        return true;
+    }
+
+    public void setIncludeEmptyDirs(boolean includeEmptyDirs) {
+        this.includeEmptyDirs = includeEmptyDirs;
     }
 
     public CopySpec include(String... includes) {
@@ -435,6 +464,10 @@ public class CopySpecImpl implements CopySpec, ReadableCopySpec {
 
         public Collection<? extends Action<? super FileCopyDetails>> getAllCopyActions() {
             return spec.getAllCopyActions();
+        }
+
+        public boolean getIncludeEmptyDirs() {
+            return spec.getIncludeEmptyDirs();
         }
     }
 }

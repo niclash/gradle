@@ -18,18 +18,21 @@ package org.gradle.api;
 
 import groovy.lang.Closure;
 import groovy.lang.MissingPropertyException;
-import org.gradle.api.file.ConfigurableFileTree;
+import org.gradle.api.artifacts.ConfigurationContainer;
+import org.gradle.api.artifacts.dsl.ArtifactHandler;
+import org.gradle.api.artifacts.dsl.DependencyHandler;
+import org.gradle.api.artifacts.dsl.RepositoryHandler;
 import org.gradle.api.file.ConfigurableFileCollection;
+import org.gradle.api.file.ConfigurableFileTree;
 import org.gradle.api.file.CopySpec;
 import org.gradle.api.file.FileTree;
-import org.gradle.api.artifacts.dsl.*;
-import org.gradle.api.artifacts.ConfigurationContainer;
 import org.gradle.api.initialization.dsl.ScriptHandler;
 import org.gradle.api.invocation.Gradle;
 import org.gradle.api.logging.LogLevel;
 import org.gradle.api.logging.Logger;
 import org.gradle.api.logging.LoggingManager;
 import org.gradle.api.plugins.Convention;
+import org.gradle.api.plugins.ExtensionContainer;
 import org.gradle.api.plugins.PluginContainer;
 import org.gradle.api.tasks.TaskContainer;
 import org.gradle.api.tasks.WorkResult;
@@ -182,8 +185,6 @@ public interface Project extends Comparable<Project> {
     public static final String GRADLE_PROPERTIES = "gradle.properties";
 
     public static final String SYSTEM_PROP_PREFIX = "systemProp";
-
-    public static final String TMP_DIR_NAME = ".gradle";
 
     public static final String DEFAULT_VERSION = "unspecified";
 
@@ -825,15 +826,15 @@ public interface Project extends Comparable<Project> {
      * <p>Returns a {@link ConfigurableFileCollection} containing the given files. You can pass any of the following
      * types to this method:</p>
      *
-     * <ul> <li>A {@code String}. Interpreted relative to the project directory, as for {@link #file(Object)}. A string
+     * <ul> <li>A {@link String}. Interpreted relative to the project directory, as for {@link #file(Object)}. A string
      * that starts with {@code file:} is treated as a file URL.</li>
      *
-     * <li>A {@code File}. Interpreted relative to the project directory, as for {@link #file(Object)}.</li>
+     * <li>A {@link File}. Interpreted relative to the project directory, as for {@link #file(Object)}.</li>
      *
      * <li>{@link java.net.URI} or {@link java.net.URL}. The URL's path is interpreted as a file path. Currently, only
      * {@code file:} URLs are supported.
      *
-     * <li>A {@code Collection} or an array. May contain any of the types listed here. The elements of the collection
+     * <li>A {@link java.util.Collection}, {@link Iterable}, or an array. May contain any of the types listed here. The elements of the collection
      * are recursively converted to files.</li>
      *
      * <li>A {@link org.gradle.api.file.FileCollection}. The contents of the collection are included in the returned
@@ -1335,14 +1336,6 @@ public interface Project extends Comparable<Project> {
     void repositories(Closure configureClosure);
 
     /**
-     * Creates a new repository handler. <p/> Each repository handler is a factory and container for repositories. For
-     * example each instance of an upload task has its own repository handler.
-     *
-     * @return a new repository handler
-     */
-    RepositoryHandler createRepositoryHandler();
-
-    /**
      * Returns the dependency handler of this project. The returned dependency handler instance can be used for adding
      * new dependencies. For accessing already declared dependencies, the configurations can be used.
      *
@@ -1474,7 +1467,7 @@ public interface Project extends Comparable<Project> {
      * @param <T> The type of objects for the container to contain.
      * @return The container.
      */
-    <T> NamedDomainObjectContainer<T> container(Class<T> type, NamedDomainObjectFactory<? extends T> factory);
+    <T> NamedDomainObjectContainer<T> container(Class<T> type, NamedDomainObjectFactory<T> factory);
 
     /**
      * Creates a container for managing named objects of the specified type. The given closure is used to create object instances. The name of the instance to be created is passed as a parameter to
@@ -1486,4 +1479,11 @@ public interface Project extends Comparable<Project> {
      * @return The container.
      */
     <T> NamedDomainObjectContainer<T> container(Class<T> type, Closure factoryClosure);
+
+    /**
+     * Allows adding DSL extensions to the project. Useful for plugin authors.
+     *
+     * @return Returned instance allows adding DSL extensions to the project
+     */
+    ExtensionContainer getExtensions();
 }

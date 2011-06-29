@@ -17,7 +17,6 @@
 package org.gradle.api.internal.artifacts.configurations;
 
 import groovy.lang.Closure;
-import org.apache.ivy.plugins.resolver.DependencyResolver;
 import org.gradle.api.Action;
 import org.gradle.api.InvalidUserDataException;
 import org.gradle.api.Project;
@@ -207,10 +206,6 @@ public class DefaultConfiguration extends AbstractFileCollection implements Conf
         }
     }
 
-    public void publish(List<DependencyResolver> publishResolvers, File descriptorDestination) {
-        ivyService.publish(getHierarchy(), descriptorDestination, publishResolvers);
-    }
-
     public TaskDependency getBuildDependencies() {
         return taskDependency;
     }
@@ -339,24 +334,6 @@ public class DefaultConfiguration extends AbstractFileCollection implements Conf
 
     public String getUploadTaskName() {
         return Configurations.uploadTaskName(getName());
-    }
-
-    @Override
-    public boolean equals(Object o) {
-        if (this == o) {
-            return true;
-        }
-        if (o == null || getClass() != o.getClass()) {
-            return false;
-        }
-
-        DefaultConfiguration that = (DefaultConfiguration) o;
-        return path.equals(that.path);
-    }
-
-    @Override
-    public int hashCode() {
-        return path.hashCode();
     }
 
     public String getDisplayName() {
@@ -515,6 +492,58 @@ public class DefaultConfiguration extends AbstractFileCollection implements Conf
         dependencies.all(action);
     }
 
+    /**
+     * Print a formatted representation of a Configuration
+     */
+    public String dump() {
+        StringBuilder reply = new StringBuilder();
+
+        reply.append("\nConfiguration:");
+        reply.append("  class='" + this.getClass() + "'");
+        reply.append("  name='" + this.getName() + "'");
+        reply.append("  hashcode='" + this.hashCode() + "'");
+
+        reply.append("\nLocal Dependencies:");
+        if (getDependencies().size() > 0) {
+            for (Dependency d : getDependencies()) {
+                reply.append("\n   " + d);
+            }
+        } else {
+            reply.append("\n   none");
+        }
+
+        reply.append("\nLocal Artifacts:");
+        if (getArtifacts().size() > 0) {
+            for (PublishArtifact a : getArtifacts()) {
+                reply.append("\n   " + a);
+            }
+        } else {
+            reply.append("\n   none");
+        }
+
+        reply.append("\nAll Dependencies:");
+        if (getAllDependencies().size() > 0) {
+            for (Dependency d : getAllDependencies()) {
+                reply.append("\n   " + d);
+            }
+        } else {
+            reply.append("\n   none");
+        }
+
+
+        reply.append("\nAll Artifacts:");
+        if (getAllArtifacts().size() > 0) {
+            for (PublishArtifact a : getAllArtifacts()) {
+                reply.append("\n   " + a);
+            }
+        } else {
+            reply.append("\n   none");
+        }
+
+        return reply.toString();
+    }
+
+
     private class ConfigurationTaskDependency extends AbstractTaskDependency {
         @Override
         public String toString() {
@@ -532,4 +561,3 @@ public class DefaultConfiguration extends AbstractFileCollection implements Conf
         }
     }
 }
-

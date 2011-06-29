@@ -21,16 +21,13 @@ import org.gradle.StartParameter;
 import org.gradle.api.artifacts.dsl.RepositoryHandler;
 import org.gradle.api.initialization.ProjectDescriptor;
 import org.gradle.api.internal.ClassGenerator;
-import org.gradle.api.internal.DomainObjectContext;
 import org.gradle.api.internal.Factory;
 import org.gradle.api.internal.GradleInternal;
-import org.gradle.api.internal.artifacts.ConfigurationContainerFactory;
-import org.gradle.api.internal.artifacts.configurations.DependencyMetaDataProvider;
-import org.gradle.api.internal.artifacts.configurations.ResolverProvider;
 import org.gradle.api.internal.artifacts.dsl.DefaultRepositoryHandler;
 import org.gradle.groovy.scripts.ScriptSource;
 import org.gradle.groovy.scripts.StringScriptSource;
 import org.gradle.groovy.scripts.UriScriptSource;
+import org.gradle.testfixtures.internal.TestTopLevelBuildServiceRegistry;
 import org.gradle.util.MultiParentClassLoader;
 import org.gradle.util.TemporaryFolder;
 import org.jmock.Expectations;
@@ -61,12 +58,10 @@ public class ProjectFactoryTest {
     public TemporaryFolder testDir = new TemporaryFolder();
     private final File rootDir = testDir.getDir();
     private final File projectDir = new File(rootDir, "project");
-    private ConfigurationContainerFactory configurationContainerFactory = context.mock(
-            ConfigurationContainerFactory.class);
     private Factory<RepositoryHandler> repositoryHandlerFactory = context.mock(Factory.class);
     private DefaultRepositoryHandler repositoryHandler = context.mock(DefaultRepositoryHandler.class);
     private StartParameter startParameterStub = new StartParameter();
-    private ServiceRegistryFactory serviceRegistryFactory = new TopLevelBuildServiceRegistry(new GlobalServicesRegistry(), startParameterStub);
+    private ServiceRegistryFactory serviceRegistryFactory = new TestTopLevelBuildServiceRegistry(new GlobalServicesRegistry(), startParameterStub, rootDir);
     private ClassGenerator classGeneratorMock = serviceRegistryFactory.get(ClassGenerator.class);
     private GradleInternal gradle = context.mock(GradleInternal.class);
 
@@ -85,8 +80,6 @@ public class ProjectFactoryTest {
             will(returnValue(gradleServices));
             allowing(gradle).getStartParameter();
             will(returnValue(startParameterStub));
-            allowing(configurationContainerFactory).createConfigurationContainer(with(any(ResolverProvider.class)),
-                    with(any(DependencyMetaDataProvider.class)), with(any(DomainObjectContext.class)));
             allowing(gradle).getProjectRegistry();
             will(returnValue(gradleServices.get(IProjectRegistry.class)));
             allowing(gradle).getScriptClassLoader();

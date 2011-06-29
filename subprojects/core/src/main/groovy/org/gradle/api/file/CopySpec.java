@@ -82,6 +82,20 @@ public interface CopySpec extends CopySourceSpec, CopyProcessingSpec, PatternFil
     void setCaseSensitive(boolean caseSensitive);
 
     /**
+     * Tells if empty target directories will be included in the copy.
+     *
+     * @return <tt>true</tt> if empty target directories will be included in the copy, <tt>false</tt> otherwise
+     */
+    boolean getIncludeEmptyDirs();
+
+    /**
+     * Controls if empty target directories should be included in the copy.
+     *
+     * @param includeEmptyDirs <tt>true</tt> if empty target directories should be included in the copy, <tt>false</tt> otherwise
+     */
+    void setIncludeEmptyDirs(boolean includeEmptyDirs);
+
+    /**
      * Adds the given specs as a child of this spec.
      * @param sourceSpecs The specs to add
      * @return this
@@ -180,8 +194,15 @@ public interface CopySpec extends CopySourceSpec, CopyProcessingSpec, PatternFil
     CopySpec into(Object destPath);
 
     /**
-     * Creates and configures a child {@code CopySpec} with the given destination path. The destination is evaluated as
-     * for {@link org.gradle.api.Project#file(Object)}.
+     * Creates and configures a child {@code CopySpec} with the given destination path. The destination path is evaluated based on its type, as follows:
+     *
+     * <ul>
+     *
+     * <li>A closure: The return value of the closure is recursively evaluated.</li>
+     *
+     * <li>Anything else: The {@code toString()} value of the given path.</li>
+     *
+     * </ul>
      *
      * @param destPath Path to the destination directory for a Copy
      * @param configureClosure The closure to use to configure the child {@code CopySpec}.

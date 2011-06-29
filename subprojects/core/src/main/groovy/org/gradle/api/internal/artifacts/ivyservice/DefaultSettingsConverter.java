@@ -17,9 +17,10 @@
 package org.gradle.api.internal.artifacts.ivyservice;
 
 import org.apache.commons.lang.StringUtils;
-import org.apache.ivy.core.cache.DefaultRepositoryCacheManager;
 import org.apache.ivy.core.cache.RepositoryCacheManager;
+import org.apache.ivy.core.module.descriptor.ModuleDescriptor;
 import org.apache.ivy.core.settings.IvySettings;
+import org.apache.ivy.plugins.IvySettingsAware;
 import org.apache.ivy.plugins.matcher.PatternMatcher;
 import org.apache.ivy.plugins.repository.Repository;
 import org.apache.ivy.plugins.repository.TransferEvent;
@@ -44,7 +45,7 @@ import java.util.*;
 public class DefaultSettingsConverter implements SettingsConverter {
     private static Logger logger = Logging.getLogger(DefaultSettingsConverter.class);
 
-    private RepositoryCacheManager repositoryCacheManager;
+    private RepositoryCacheManager repositoryCacheManager = new DefaultRepositoryCacheManager();
     private IvySettings ivySettings;
     private final ProgressLoggerFactory progressLoggerFactory;
     private final TransferListener transferListener = new ProgressLoggingTransferListener();
@@ -75,26 +76,22 @@ public class DefaultSettingsConverter implements SettingsConverter {
             return ivySettings;
         }
         Clock clock = new Clock();
-        ChainResolver userResolverChain = createUserResolverChain(Collections.<DependencyResolver>emptyList(), internalRepository);
-        ClientModuleResolver clientModuleResolver = createClientModuleResolver(new HashMap(), userResolverChain);
-        ChainResolver outerChain = createOuterChain(userResolverChain, clientModuleResolver);
 
         IvySettings ivySettings = createIvySettings(gradleUserHome);
-        initializeResolvers(ivySettings, getAllResolvers(Collections.<DependencyResolver>emptyList(), publishResolvers, internalRepository, userResolverChain, clientModuleResolver, outerChain));
-        ivySettings.setDefaultResolver(CLIENT_MODULE_CHAIN_NAME);
+        initializeResolvers(ivySettings, publishResolvers);
         logger.debug("Timing: Ivy convert for publish took {}", clock.getTime());
         return ivySettings;
     }
 
     public IvySettings convertForResolve(List<DependencyResolver> dependencyResolvers,
-                               File gradleUserHome, DependencyResolver internalRepository, Map clientModuleRegistry) {
+                               File gradleUserHome, DependencyResolver internalRepository, Map<String, ModuleDescriptor> clientModuleRegistry) {
         if (ivySettings != null) {
             return ivySettings;
         }
         Clock clock = new Clock();
-        ChainResolver userResolverChain = createUserResolverChain(dependencyResolvers, internalRepository);
-        ClientModuleResolver clientModuleResolver = createClientModuleResolver(clientModuleRegistry, userResolverChain);
-        ChainResolver outerChain = createOuterChain(userResolverChain, clientModuleResolver);
+        DependencyResolver userResolverChain = createUserResolverChain(dependencyResolvers, internalRepository);
+        DependencyResolver clientModuleResolver = createClientModuleResolver(clientModuleRegistry, userResolverChain);
+        DependencyResolver outerChain = createOuterChain(WrapUtil.toLinkedSet(clientModuleResolver, userResolverChain));
 
         IvySettings ivySettings = createIvySettings(gradleUserHome);
         initializeResolvers(ivySettings, getAllResolvers(dependencyResolvers, Collections.<DependencyResolver>emptyList(), internalRepository, userResolverChain, clientModuleResolver, outerChain));
@@ -104,29 +101,29 @@ public class DefaultSettingsConverter implements SettingsConverter {
     }
 
     private List<DependencyResolver> getAllResolvers(List<DependencyResolver> classpathResolvers,
-                                                     List<DependencyResolver> otherResolvers, DependencyResolver internalRepository, 
-                                                     ChainResolver userResolverChain, ClientModuleResolver clientModuleResolver,
-                                                     ChainResolver outerChain) {
+                                                     List<DependencyResolver> otherResolvers, DependencyResolver... resolvers) {
         List<DependencyResolver> allResolvers = new ArrayList<DependencyResolver>(otherResolvers);
         allResolvers.addAll(classpathResolvers);
-        allResolvers.addAll(WrapUtil.toList(internalRepository, outerChain, clientModuleResolver, userResolverChain));
+        allResolvers.addAll(WrapUtil.toList(resolvers));
         return allResolvers;
     }
 
-    private ChainResolver createOuterChain(ChainResolver userResolverChain, ClientModuleResolver clientModuleResolver) {
+    private DependencyResolver createOuterChain(Collection<DependencyResolver> resolvers) {
         ChainResolver clientModuleChain = new ChainResolver();
         clientModuleChain.setName(CLIENT_MODULE_CHAIN_NAME);
         clientModuleChain.setReturnFirst(true);
-        clientModuleChain.add(clientModuleResolver);
-        clientModuleChain.add(userResolverChain);
+        clientModuleChain.setRepositoryCacheManager(new NoOpRepositoryCacheManager(clientModuleChain.getName()));
+        for (DependencyResolver resolver : resolvers) {
+            clientModuleChain.add(resolver);
+        }
         return clientModuleChain;
     }
 
-    private ClientModuleResolver createClientModuleResolver(Map clientModuleRegistry, ChainResolver userResolverChain) {
+    private DependencyResolver createClientModuleResolver(Map<String, ModuleDescriptor> clientModuleRegistry, DependencyResolver userResolverChain) {
         return new ClientModuleResolver(CLIENT_MODULE_NAME, clientModuleRegistry, userResolverChain);
     }
 
-    private ChainResolver createUserResolverChain(List<DependencyResolver> classpathResolvers, DependencyResolver internalRepository) {
+    private DependencyResolver createUserResolverChain(List<DependencyResolver> classpathResolvers, DependencyResolver internalRepository) {
         ChainResolver chainResolver = new ChainResolver();
         chainResolver.setName(CHAIN_RESOLVER_NAME);
         chainResolver.add(internalRepository);
@@ -134,6 +131,7 @@ public class DefaultSettingsConverter implements SettingsConverter {
         chainResolver.setChangingPattern(".*-SNAPSHOT");
         chainResolver.setChangingMatcher(PatternMatcher.REGEXP);
         chainResolver.setReturnFirst(true);
+        chainResolver.setRepositoryCacheManager(new NoOpRepositoryCacheManager(chainResolver.getName()));
         for (DependencyResolver classpathResolver : classpathResolvers) {
             chainResolver.add(classpathResolver);
         }
@@ -146,22 +144,23 @@ public class DefaultSettingsConverter implements SettingsConverter {
         ivySettings.setDefaultCacheIvyPattern(ResolverContainer.DEFAULT_CACHE_IVY_PATTERN);
         ivySettings.setDefaultCacheArtifactPattern(ResolverContainer.DEFAULT_CACHE_ARTIFACT_PATTERN);
         ivySettings.setVariable("ivy.log.modules.in.use", "false");
-        setRepositoryCacheManager(ivySettings);
+        ivySettings.setDefaultRepositoryCacheManager(repositoryCacheManager);
+        ((IvySettingsAware)repositoryCacheManager).setSettings(ivySettings);
         return ivySettings;
-    }
-
-    private void setRepositoryCacheManager(IvySettings ivySettings) {
-        if (repositoryCacheManager == null) {
-            repositoryCacheManager = ivySettings.getDefaultRepositoryCacheManager();
-        } else {
-            ivySettings.setDefaultRepositoryCacheManager(repositoryCacheManager);
-        }
     }
 
     private void initializeResolvers(IvySettings ivySettings, List<DependencyResolver> allResolvers) {
         for (DependencyResolver dependencyResolver : allResolvers) {
             ivySettings.addResolver(dependencyResolver);
-            ((DefaultRepositoryCacheManager) dependencyResolver.getRepositoryCacheManager()).setSettings(ivySettings);
+            RepositoryCacheManager cacheManager = dependencyResolver.getRepositoryCacheManager();
+            // Validate that each resolver is sharing the same cache instance (ignoring caches which don't actually cache anything)
+            if (cacheManager != ivySettings.getDefaultRepositoryCacheManager()
+                    && !(cacheManager instanceof NoOpRepositoryCacheManager)
+                    && !(cacheManager instanceof LocalFileRepositoryCacheManager)) {
+                throw new IllegalStateException(String.format(
+                        "For consistency reasons, gradle requires all remote resolver resolvers to share the same instance of the repository cache manager."
+                        + " Unexpected cache manager %s for repository %s (%s)", cacheManager, dependencyResolver.getName(), dependencyResolver));
+            }
             if (dependencyResolver instanceof RepositoryResolver) {
                 Repository repository = ((RepositoryResolver) dependencyResolver).getRepository();
                 if (!repository.hasTransferListener(transferListener)) {
@@ -189,15 +188,17 @@ public class DefaultSettingsConverter implements SettingsConverter {
             }
             if (evt.getEventType() == TransferEvent.TRANSFER_STARTED) {
                 total = 0;
-                DefaultSettingsConverter.logger.lifecycle(String.format("%s %s", StringUtils.capitalize(getRequestType(evt)), evt.getResource().getName()));
-                logger = progressLoggerFactory.start(DefaultSettingsConverter.class.getName());
+                logger = progressLoggerFactory.newOperation(DefaultSettingsConverter.class);
+                String description = String.format("%s %s", StringUtils.capitalize(getRequestType(evt)), evt.getResource().getName());
+                logger.setDescription(description);
+                logger.setLoggingHeader(description);
+                logger.started();
             }
             if (evt.getEventType() == TransferEvent.TRANSFER_PROGRESS) {
                 total += evt.getLength();
                 logger.progress(String.format("%s/%s %sed", getLengthText(total), getLengthText(evt), getRequestType(evt)));
             }
-            if (evt.getEventType() == TransferEvent.TRANSFER_COMPLETED
-                    || evt.getEventType() == TransferEvent.TRANSFER_ERROR) {
+            if (evt.getEventType() == TransferEvent.TRANSFER_COMPLETED) {
                 logger.completed();
             }
         }

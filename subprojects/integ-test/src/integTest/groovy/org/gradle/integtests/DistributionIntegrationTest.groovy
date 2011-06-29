@@ -23,8 +23,9 @@ import org.gradle.util.GradleVersion
 import org.gradle.util.TestFile
 import org.junit.Rule
 import org.junit.Test
-import static org.hamcrest.Matchers.*
-import static org.junit.Assert.*
+import static org.hamcrest.Matchers.containsString
+import static org.hamcrest.Matchers.equalTo
+import static org.junit.Assert.assertThat
 
 class DistributionIntegrationTest {
     @Rule public final GradleDistribution dist = new GradleDistribution()
@@ -62,15 +63,26 @@ class DistributionIntegrationTest {
         // Samples
         contentsDir.file('samples/java/quickstart/build.gradle').assertIsFile()
 
-        // Docs
+        // Javadoc
         contentsDir.file('docs/javadoc/index.html').assertIsFile()
+        contentsDir.file('docs/javadoc/index.html').assertContents(containsString("Gradle API ${version}"))
         contentsDir.file('docs/javadoc/org/gradle/api/Project.html').assertIsFile()
+
+        // Groovydoc
         contentsDir.file('docs/groovydoc/index.html').assertIsFile()
         contentsDir.file('docs/groovydoc/org/gradle/api/Project.html').assertIsFile()
         contentsDir.file('docs/groovydoc/org/gradle/api/tasks/bundling/Zip.html').assertIsFile()
+
+        // Userguide
         contentsDir.file('docs/userguide/userguide.html').assertIsFile()
+        contentsDir.file('docs/userguide/userguide.html').assertContents(containsString("<h3 class=\"releaseinfo\">Version ${version}</h3>"))
         contentsDir.file('docs/userguide/userguide_single.html').assertIsFile()
+        contentsDir.file('docs/userguide/userguide_single.html').assertContents(containsString("<h3 class=\"releaseinfo\">Version ${version}</h3>"))
 //        contentsDir.file('docs/userguide/userguide.pdf').assertIsFile()
+
+        // DSL reference
+        contentsDir.file('docs/dsl/index.html').assertIsFile()
+        contentsDir.file('docs/dsl/index.html').assertContents(containsString("<title>Gradle DSL Version ${version}</title>"))
     }
 
     private def checkMinimalContents(TestFile contentsDir) {
@@ -90,9 +102,17 @@ class DistributionIntegrationTest {
         assertIsGradleJar(contentsDir.file("lib/gradle-launcher-${version}.jar"))
         assertIsGradleJar(contentsDir.file("lib/gradle-tooling-api-${version}.jar"))
         assertIsGradleJar(contentsDir.file("lib/gradle-wrapper-${version}.jar"))
-        assertIsGradleJar(contentsDir.file("lib/plugins/gradle-code-quality-${version}.jar"))
+
         assertIsGradleJar(contentsDir.file("lib/plugins/gradle-plugins-${version}.jar"))
+        assertIsGradleJar(contentsDir.file("lib/plugins/gradle-ide-${version}.jar"))
+        assertIsGradleJar(contentsDir.file("lib/plugins/gradle-scala-${version}.jar"))
+        assertIsGradleJar(contentsDir.file("lib/plugins/gradle-code-quality-${version}.jar"))
+        assertIsGradleJar(contentsDir.file("lib/plugins/gradle-antlr-${version}.jar"))
+        assertIsGradleJar(contentsDir.file("lib/plugins/gradle-announce-${version}.jar"))
         assertIsGradleJar(contentsDir.file("lib/plugins/gradle-jetty-${version}.jar"))
+        assertIsGradleJar(contentsDir.file("lib/plugins/gradle-sonar-${version}.jar"))
+        assertIsGradleJar(contentsDir.file("lib/plugins/gradle-maven-${version}.jar"))
+        assertIsGradleJar(contentsDir.file("lib/plugins/gradle-osgi-${version}.jar"))
 
         // Docs
         contentsDir.file('getting-started.html').assertIsFile()

@@ -15,9 +15,9 @@
  */
 package org.gradle.tooling;
 
-import org.gradle.api.internal.project.DefaultServiceRegistry;
 import org.gradle.api.internal.project.ServiceRegistry;
 import org.gradle.tooling.internal.consumer.ConnectionFactory;
+import org.gradle.tooling.internal.consumer.ConnectorServiceRegistry;
 import org.gradle.tooling.internal.consumer.DefaultGradleConnector;
 import org.gradle.tooling.internal.consumer.DistributionFactory;
 
@@ -107,13 +107,4 @@ public abstract class GradleConnector {
      */
     public abstract ProjectConnection connect() throws GradleConnectionException;
 
-    private static class ConnectorServiceRegistry extends DefaultServiceRegistry {
-        protected ConnectionFactory createConnectionFactory() {
-            return new ConnectionFactory();
-        }
-
-        protected DistributionFactory createDistributionFactory() {
-            return new DistributionFactory();
-        }
-    }
 }

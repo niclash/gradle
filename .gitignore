@@ -27,3 +27,5 @@
 /subprojects/*/bin
 /intTestHomeDir
 .DS_Store
+/performanceTest/lib
+.textmate

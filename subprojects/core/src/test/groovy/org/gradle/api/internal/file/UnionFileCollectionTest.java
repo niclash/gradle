@@ -16,16 +16,17 @@
 package org.gradle.api.internal.file;
 
 import org.gradle.api.file.FileCollection;
-import static org.gradle.util.WrapUtil.*;
-import static org.hamcrest.Matchers.*;
 import org.jmock.Expectations;
 import org.jmock.integration.junit4.JMock;
 import org.jmock.integration.junit4.JUnit4Mockery;
-import static org.junit.Assert.*;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 
 import java.io.File;
+
+import static org.gradle.util.WrapUtil.*;
+import static org.hamcrest.Matchers.equalTo;
+import static org.junit.Assert.assertThat;
 
 @RunWith(JMock.class)
 public class UnionFileCollectionTest {

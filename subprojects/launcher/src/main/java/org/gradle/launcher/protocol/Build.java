@@ -15,32 +15,24 @@
  */
 package org.gradle.launcher.protocol;
 
-import org.gradle.initialization.BuildClientMetaData;
-import org.gradle.initialization.ParsedCommandLine;
-
-import java.io.File;
+import org.gradle.initialization.GradleLauncherAction;
+import org.gradle.launcher.BuildActionParameters;
 
 public class Build extends Command {
-    private final ParsedCommandLine args;
-    private final File currentDir;
-    private final long startTime;
+    private final GradleLauncherAction<?> action;
+    private final BuildActionParameters parameters;
 
-    public Build(File currentDir, ParsedCommandLine args, long startTime, BuildClientMetaData clientMetaData) {
-        super(clientMetaData);
-        this.currentDir = currentDir;
-        this.args = args;
-        this.startTime = startTime;
+    public Build(GradleLauncherAction<?> action, BuildActionParameters parameters) {
+        super(parameters.getClientMetaData());
+        this.action = action;
+        this.parameters = parameters;
     }
 
-    public ParsedCommandLine getArgs() {
-        return args;
+    public GradleLauncherAction<?> getAction() {
+        return action;
     }
 
-    public File getCurrentDir() {
-        return currentDir;
-    }
-
-    public long getStartTime() {
-        return startTime;
+    public BuildActionParameters getParameters() {
+        return parameters;
     }
 }

@@ -17,7 +17,7 @@ package org.gradle.api.internal.changedetection;
 
 import org.gradle.StartParameter;
 import org.gradle.api.Task;
-import org.gradle.api.file.FileCollection;
+import org.gradle.api.internal.TaskExecutionHistory;
 import org.gradle.api.internal.TaskInternal;
 import org.gradle.api.internal.TaskOutputsInternal;
 import org.gradle.api.specs.Spec;
@@ -28,7 +28,7 @@ import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 
-import static org.hamcrest.Matchers.*;
+import static org.hamcrest.Matchers.sameInstance;
 import static org.junit.Assert.*;
 
 @RunWith(JMock.class)
@@ -59,16 +59,20 @@ public class ShortCircuitTaskArtifactStateRepositoryTest {
         TaskArtifactState state = repository.getStateFor(task);
         assertNotNull(state);
 
-        final FileCollection outputFiles = context.mock(FileCollection.class);
+        final TaskExecutionHistory executionHistory = context.mock(TaskExecutionHistory.class);
 
         context.checking(new Expectations() {{
-            one(taskArtifactState).getOutputFiles();
-            will(returnValue(outputFiles));
-            one(taskArtifactState).update();
+            one(taskArtifactState).getExecutionHistory();
+            will(returnValue(executionHistory));
+            one(taskArtifactState).beforeTask();
+            one(taskArtifactState).afterTask();
+            one(taskArtifactState).finished();
         }});
 
-        assertThat(state.getOutputFiles(), sameInstance(outputFiles));
-        state.update();
+        assertThat(state.getExecutionHistory(), sameInstance(executionHistory));
+        state.beforeTask();
+        state.afterTask();
+        state.finished();
     }
 
     @Test

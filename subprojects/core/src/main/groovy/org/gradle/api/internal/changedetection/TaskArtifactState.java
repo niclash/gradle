@@ -20,14 +20,29 @@ import org.gradle.api.internal.TaskExecutionHistory;
 /**
  * Encapsulates the state of the task when its outputs were last generated.
  */
-public interface TaskArtifactState extends TaskExecutionHistory {
+public interface TaskArtifactState {
     /**
      * Returns true if the task outputs were generated using the given task inputs.
      */
     boolean isUpToDate();
 
     /**
-     * Marks current state as valid.
+     * Called before the task is to be executed. Note that {@link #isUpToDate()} may not necessarily have been called.
      */
-    void update();
+    void beforeTask();
+
+    /**
+     * Called on successful completion of task execution.
+     */
+    void afterTask();
+
+    /**
+     * Called when this state is finished with.
+     */
+    void finished();
+
+    /**
+     * Returns the history for this task.
+     */
+    TaskExecutionHistory getExecutionHistory();
 }

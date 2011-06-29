@@ -91,6 +91,13 @@ public class CopySpecImplTest {
         assertThat(spec.destPath, equalTo(new RelativePath(false)))
     }
 
+    @Test public void testIntoWithAClosure() {
+        spec.into { 'spec' }
+        assertThat(spec.destPath, equalTo(new RelativePath(false, 'spec')))
+        spec.into { return { 'spec' } }
+        assertThat(spec.destPath, equalTo(new RelativePath(false, 'spec')))
+    }
+
     @Test public void testWithSpec() {
         CopySpecImpl other1 = new CopySpecImpl(fileResolver)
         CopySpecImpl other2 = new CopySpecImpl(fileResolver)
@@ -238,6 +245,17 @@ public class CopySpecImplTest {
         child.caseSensitive = true
         assertTrue(child.caseSensitive)
         assertTrue(child.patternSet.caseSensitive)
+    }
+
+    @Test public void testChildUsesIncludeEmptyDirsFlagFromParentAsDefault() {
+        def child = spec.from('dir') {}
+        assert child.includeEmptyDirs
+
+        spec.includeEmptyDirs = false
+        assert !child.includeEmptyDirs
+
+        child.includeEmptyDirs = true
+        assert child.includeEmptyDirs
     }
 
     @Test public void testNoArgFilter() {

@@ -15,8 +15,37 @@
  */
 package org.gradle.util;
 
-public class OperatingSystem {
-    private static final OperatingSystem WINDOWS = new OperatingSystem() {
+public abstract class OperatingSystem {
+    public static OperatingSystem current() {
+        String osName = System.getProperty("os.name").toLowerCase();
+        if (osName.contains("windows")) {
+            return new Windows();
+        } else if (osName.contains("mac os x") || osName.contains("darwin")) {
+            return new MacOs();
+        } else if (osName.contains("sunos")) {
+            return new Solaris();
+        } else {
+            // Not strictly true
+            return new Unix();
+        }
+    }
+
+    @Override
+    public String toString() {
+        return String.format("%s %s %s", System.getProperty("os.name"), System.getProperty("os.version"), System.getProperty("os.arch"));
+    }
+
+    public abstract boolean isWindows();
+
+    public abstract boolean isUnix();
+
+    public abstract boolean isCaseSensitiveFileSystem();
+
+    public abstract String getNativePrefix();
+
+    public abstract String getScriptName(String scriptPath);
+
+    public static class Windows extends OperatingSystem {
         @Override
         public boolean isCaseSensitiveFileSystem() {
             return false;
@@ -28,58 +57,105 @@ public class OperatingSystem {
         }
 
         @Override
+        public boolean isUnix() {
+            return false;
+        }
+
+        @Override
         public String getScriptName(String scriptPath) {
             if (scriptPath.toLowerCase().endsWith(".bat")) {
                 return scriptPath;
             }
             return scriptPath + ".bat";
         }
-    };
 
-    private static final OperatingSystem OS_X = new OperatingSystem() {
+        @Override
+        public String getNativePrefix() {
+            String arch = System.getProperty("os.arch");
+            if ("i386".equals(arch)) {
+                arch = "x86";
+            }
+            return "win32-" + arch;
+        }
+    }
+
+    public static class Unix extends OperatingSystem {
+        public String getScriptName(String scriptPath) {
+            return scriptPath;
+        }
+
+        @Override
+        public boolean isCaseSensitiveFileSystem() {
+            return true;
+        }
+
+        @Override
+        public boolean isWindows() {
+            return false;
+        }
+
+        @Override
+        public boolean isUnix() {
+            return true;
+        }
+
+        public String getNativePrefix() {
+            String arch = getArch();
+            String osPrefix = getOsPrefix();
+            osPrefix += "-" + arch;
+            return osPrefix;
+        }
+
+        protected String getArch() {
+            String arch = System.getProperty("os.arch");
+            if ("x86".equals(arch)) {
+                arch = "i386";
+            }
+            if ("x86_64".equals(arch)) {
+                arch = "amd64";
+            }
+            if ("powerpc".equals(arch)) {
+                arch = "ppc";
+            }
+            return arch;
+        }
+
+        protected String getOsPrefix() {
+            String name = System.getProperty("os.name");
+            String osPrefix = name.toLowerCase();
+            int space = osPrefix.indexOf(" ");
+            if (space != -1) {
+                osPrefix = osPrefix.substring(0, space);
+            }
+            return osPrefix;
+        }
+    }
+
+    public static class MacOs extends Unix {
         @Override
         public boolean isCaseSensitiveFileSystem() {
             return false;
         }
-    };
 
-    private static final OperatingSystem OTHER = new OperatingSystem();
-    private static final OperatingSystem CURRENT;
-
-    static {
-        String osName = System.getProperty("os.name").toLowerCase();
-        if (osName.contains("windows")) {
-            CURRENT = WINDOWS;
-        } else if (osName.contains("mac os x")) {
-            CURRENT = OS_X;
-        } else {
-            CURRENT = OTHER;
+        @Override
+        public String getNativePrefix() {
+            return "darwin";
         }
     }
 
-    public static OperatingSystem current() {
-        return CURRENT;
-    }
+    public static class Solaris extends Unix {
+        @Override
+        protected String getOsPrefix() {
+            return "sunos";
+        }
 
-    @Override
-    public String toString() {
-        return String.format("%s %s %s", System.getProperty("os.name"), System.getProperty("os.version"), System.getProperty("os.arch"));
-    }
-
-    public boolean isWindows() {
-        return false;
-    }
-
-    public boolean isUnix() {
-        // Not quite true
-        return !isWindows();
-    }
-
-    public boolean isCaseSensitiveFileSystem() {
-        return true;
-    }
-
-    public String getScriptName(String scriptPath) {
-        return scriptPath;
+        @Override
+        protected String getArch() {
+            String arch = System.getProperty("os.arch");
+            if (arch.equals("i386") || arch.equals("x86")) {
+                return "x86";
+            }
+            return super.getArch();
+        }
     }
 }

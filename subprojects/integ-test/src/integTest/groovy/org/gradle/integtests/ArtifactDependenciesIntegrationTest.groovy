@@ -1,5 +1,5 @@
 /*
- * Copyright 2010 the original author or authors.
+ * Copyright 2011 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -13,26 +13,32 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
-
 package org.gradle.integtests
 
-import org.gradle.integtests.fixtures.ExecutionFailure
-import org.gradle.integtests.fixtures.TestResources
+import org.gradle.integtests.fixtures.internal.AbstractIntegrationTest
 import org.gradle.util.TestFile
 import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
-import static org.hamcrest.Matchers.*
-import org.gradle.integtests.fixtures.MavenRepository
+import org.gradle.integtests.fixtures.*
+import static org.hamcrest.Matchers.containsString
+import static org.hamcrest.Matchers.startsWith
 
 class ArtifactDependenciesIntegrationTest extends AbstractIntegrationTest {
     @Rule
     public final TestResources testResources = new TestResources()
+    @Rule
+    public final HttpServer server = new HttpServer()
 
     @Before
     public void setup() {
         distribution.requireOwnUserHomeDir()
+    }
+
+    @Test
+    public void canResolveDependenciesFromAFlatDir() {
+        File buildFile = testFile("projectWithFlatDir.gradle");
+        usingBuildFile(buildFile).run();
     }
 
     @Test
@@ -64,6 +70,40 @@ class ArtifactDependenciesIntegrationTest extends AbstractIntegrationTest {
     public void canUseDynamicVersions() throws IOException {
         File buildFile = testFile("projectWithDynamicVersions.gradle");
         usingBuildFile(buildFile).run();
+    }
+
+    @Test
+    public void resolutionFailsWhenProjectHasNoRepositoriesEvenWhenArtifactIsCachedLocally() {
+        testFile('settings.gradle') << 'include "a", "b"'
+        testFile('build.gradle') << """
+project(':a') {
+    repositories {
+        mavenRepo urls: '${repo().rootDir.toURI()}'
+    }
+    configurations {
+        compile
+    }
+    dependencies {
+        compile 'org.gradle.test:external1:1.0'
+    }
+}
+project(':b') {
+    configurations {
+        compile
+    }
+    dependencies {
+        compile 'org.gradle.test:external1:1.0'
+    }
+}
+subprojects {
+    task listDeps << { configurations.compile.each { } }
+}
+"""
+        repo().module('org.gradle.test', 'external1', '1.0').publishArtifact()
+
+        inTestDirectory().withTasks('a:listDeps').run()
+        def result = inTestDirectory().withTasks('b:listDeps').runWithFailure()
+        result.assertThatCause(containsString('unresolved dependency: org.gradle.test#external1;1.0: not found'))
     }
 
     @Test
@@ -197,8 +237,72 @@ project(':b') {
         inTestDirectory().withTasks('listJars').run()
     }
 
+    @Test
+    public void canResolveAndCacheDependenciesFromHttpIvyRepository() {
+        def repo = ivyRepo()
+        def module = repo.module('group', 'projectA', '1.2')
+        module.publishArtifact()
+
+        server.expectGet('/repo/group/projectA/1.2/ivy-1.2.xml', module.ivyFile)
+        server.expectGet('/repo/group/projectA/1.2/projectA-1.2.jar', module.jarFile)
+        server.start()
+
+        testFile("build.gradle") << """
+apply plugin: 'java'
+repositories {
+    ivy {
+        name = 'gradleReleases'
+        artifactPattern "http://localhost:${server.port}/repo/[organisation]/[module]/[revision]/[artifact]-[revision].[ext]"
+    }
+}
+dependencies {
+    compile 'group:projectA:1.2'
+}
+task listJars << {
+    assert configurations.compile.collect { it.name } == ['projectA-1.2.jar']
+}
+"""
+
+        inTestDirectory().withTasks('listJars').run()
+        inTestDirectory().withTasks('listJars').run()
+    }
+    
+    @Test
+    public void reportsMissingAndFailedHttpDownload() {
+        server.start()
+
+        testFile("build.gradle") << """
+apply plugin: 'java'
+repositories {
+    ivy {
+        name = 'gradleReleases'
+        artifactPattern "http://localhost:${server.port}/[module]/[revision]/[artifact]-[revision](-[classifier]).[ext]"
+    }
+}
+dependencies {
+    compile 'group:org:1.2'
+}
+task show << { println configurations.compile.files }
+"""
+
+        def result = executer.withTasks("show").runWithFailure()
+        result.assertHasDescription('Execution failed for task \':show\'.')
+        result.assertHasCause('Could not resolve all dependencies for configuration \':compile\':')
+        assert result.getOutput().contains('group#org;1.2: not found')
+
+        server.addBroken('/')
+
+        result = executer.withTasks("show").runWithFailure()
+        result.assertHasDescription('Execution failed for task \':show\'.')
+        result.assertHasCause('Could not resolve all dependencies for configuration \':compile\':')
+    }
+
     MavenRepository repo() {
         return new MavenRepository(testFile('repo'))
+    }
+
+    IvyRepository ivyRepo() {
+        return new IvyRepository(testFile('ivy-repo'))
     }
 }
 

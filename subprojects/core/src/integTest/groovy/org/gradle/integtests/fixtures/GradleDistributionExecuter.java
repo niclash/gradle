@@ -40,12 +40,16 @@ public class GradleDistributionExecuter extends AbstractGradleExecuter implement
     private boolean workingDirSet;
     private boolean userHomeSet;
 
-    private enum Executer {
+    public enum Executer {
         forking, embedded, daemon
     }
 
     static {
         EXECUTER = Executer.valueOf(System.getProperty(EXECUTER_SYS_PROP, Executer.forking.toString()).toLowerCase());
+    }
+
+    public static Executer getExecuter() {
+        return EXECUTER;
     }
 
     public GradleDistributionExecuter(GradleDistribution dist) {
@@ -106,8 +110,14 @@ public class GradleDistributionExecuter extends AbstractGradleExecuter implement
     }
 
     private <T extends ExecutionResult> T checkResult(T result) {
+        // Assert that nothing unexpected was logged
         result.assertOutputHasNoStackTraces();
         result.assertErrorHasNoStackTraces();
+        if (getExecutable() == null) {
+            // Assert that no temp files are left lying around
+            // Note: don't do this if a custom executable is used, as we don't know (and probably don't care) whether the executable cleans up or not
+            getTmpDir().assertIsEmptyDir();
+        }
         return result;
     }
 
@@ -136,14 +146,19 @@ public class GradleDistributionExecuter extends AbstractGradleExecuter implement
             boolean useDaemon = EXECUTER == Executer.daemon && getExecutable() == null;
             ForkingGradleExecuter forkingGradleExecuter = useDaemon ? new DaemonGradleExecuter(dist.getGradleHomeDir()) : new ForkingGradleExecuter(dist.getGradleHomeDir());
             copyTo(forkingGradleExecuter);
+            TestFile tmpDir = getTmpDir();
+            if (tmpDir != null) {
+                tmpDir.deleteDir().createDir();
+                forkingGradleExecuter.addGradleOpts(String.format("-Djava.io.tmpdir=%s", tmpDir));
+            }
             returnedExecuter = forkingGradleExecuter;
         }
 
         boolean settingsFound = false;
         for (
-                File dir = new TestFile(getWorkingDir()); dir != null && dist.isFileUnderTest(dir) && !settingsFound;
+                TestFile dir = new TestFile(getWorkingDir()); dir != null && dist.isFileUnderTest(dir) && !settingsFound;
                 dir = dir.getParentFile()) {
-            if (new File(dir, "settings.gradle").isFile()) {
+            if (dir.file("settings.gradle").isFile()) {
                 settingsFound = true;
             }
         }
@@ -152,5 +167,9 @@ public class GradleDistributionExecuter extends AbstractGradleExecuter implement
         }
 
         return returnedExecuter;
+    }
+
+    private TestFile getTmpDir() {
+        return new TestFile(dist.getUserHomeDir(), "tmp");
     }
 }

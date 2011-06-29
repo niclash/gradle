@@ -15,6 +15,8 @@
  */
 package org.gradle.integtests
 
+import com.google.common.collect.ArrayListMultimap
+import com.google.common.collect.ListMultimap
 import groovy.io.PlatformLineWriter
 import junit.framework.AssertionFailedError
 import org.apache.tools.ant.taskdefs.Delete
@@ -22,16 +24,16 @@ import org.gradle.integtests.fixtures.ExecutionResult
 import org.gradle.integtests.fixtures.GradleDistribution
 import org.gradle.integtests.fixtures.GradleDistributionExecuter
 import org.gradle.util.AntUtil
+import org.gradle.util.SystemProperties
 import org.junit.Assert
 import org.junit.runner.Description
 import org.junit.runner.Runner
 import org.junit.runner.notification.Failure
 import org.junit.runner.notification.RunNotifier
-import com.google.common.collect.ListMultimap
-import com.google.common.collect.ArrayListMultimap
 
 class UserGuideSamplesRunner extends Runner {
-    static final String NL = System.properties['line.separator']
+    private static final String NL = SystemProperties.lineSeparator
+
     Class<?> testClass
     Description description
     Map<Description, SampleRun> samples;
@@ -184,10 +186,15 @@ class UserGuideSamplesRunner extends Runner {
     }
 
     static Collection<SampleRun> getScriptsForSamples(File userguideInfoDir) {
-        Node samples = new XmlParser().parse(new File(userguideInfoDir, 'samples.xml'))
+        def samplesXml = new File(userguideInfoDir, 'samples.xml')
+        assertSamplesGenerated(samplesXml.exists())
+        Node samples = new XmlParser().parse(samplesXml)
         ListMultimap<String, GradleRun> samplesByDir = ArrayListMultimap.create()
 
-        samples.children().each {Node sample ->
+        def children = samples.children()
+        assertSamplesGenerated(!children.isEmpty())
+
+        children.each {Node sample ->
             String id = sample.'@id'
             String dir = sample.'@dir'
             String args = sample.'@args'
@@ -235,6 +242,11 @@ class UserGuideSamplesRunner extends Runner {
         }
 
         return samplesById.values()
+    }
+
+    static void assertSamplesGenerated(boolean assertion) {
+        assert assertion : """Couldn't find any samples. Most likely, samples.xml was not generated.
+Please run 'gradle docs:userguideDocbook' first"""
     }
 }
 

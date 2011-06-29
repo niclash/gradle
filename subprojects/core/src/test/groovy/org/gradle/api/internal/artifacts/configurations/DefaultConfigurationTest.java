@@ -16,7 +16,6 @@
 package org.gradle.api.internal.artifacts.configurations;
 
 import groovy.lang.Closure;
-import org.apache.ivy.plugins.resolver.DependencyResolver;
 import org.gradle.api.*;
 import org.gradle.api.artifacts.*;
 import org.gradle.api.file.FileCollection;
@@ -43,7 +42,6 @@ import java.io.File;
 import java.util.*;
 
 import static org.gradle.util.Matchers.isEmpty;
-import static org.gradle.util.Matchers.strictlyEqual;
 import static org.gradle.util.WrapUtil.*;
 import static org.hamcrest.Matchers.*;
 import static org.junit.Assert.*;
@@ -330,28 +328,8 @@ public class DefaultConfigurationTest {
     }
 
     @Test
-    public void publish() {
-        final Configuration otherConfiguration = createNamedConfiguration("testConf").extendsFrom(configuration);
-        final File someDescriptorDestination = new File("somePath");
-        final List<DependencyResolver> dependencyResolvers = toList(context.mock(DependencyResolver.class, "publish"));
-        context.checking(new Expectations() {{
-            allowing(ivyServiceStub).publish(new LinkedHashSet<Configuration>(otherConfiguration.getHierarchy()), someDescriptorDestination, dependencyResolvers);
-        }});
-        otherConfiguration.publish(dependencyResolvers, someDescriptorDestination);
-    }
-
-    @Test
     public void uploadTaskName() {
         assertThat(configuration.getUploadTaskName(), equalTo("uploadName"));
-    }
-
-    @Test
-    public void equality() {
-        Configuration sameConf = createNamedConfiguration("path", "name");
-        Configuration differentPath = createNamedConfiguration("other", "name");
-
-        assertThat(configuration, strictlyEqual(sameConf));
-        assertThat(configuration, not(equalTo(differentPath)));
     }
 
     private DefaultConfiguration createNamedConfiguration(String confName) {
@@ -923,6 +901,34 @@ public class DefaultConfigurationTest {
                 configuration.removeArtifact(context.mock(PublishArtifact.class, "removeeArtifact"));
             }
         });
+    }
+    
+    @Test
+    public void dumpString() {
+        Dependency configurationDependency = HelperUtil.createDependency("dumpgroup1", "dumpname1", "dumpversion1");
+        Dependency otherConfSimilarDependency = HelperUtil.createDependency("dumpgroup1", "dumpname1", "dumpversion1");
+        Dependency otherConfDependency = HelperUtil.createDependency("dumpgroup2", "dumpname2", "dumpversion2");
+        Configuration otherConf = createNamedConfiguration("dumpConf");
+        configuration.extendsFrom(otherConf);
+        otherConf.addDependency(otherConfDependency);
+        otherConf.addDependency(otherConfSimilarDependency);
+        configuration.addDependency(configurationDependency);
+
+        assertThat(configuration.dump(),
+                containsString(
+                "\nConfiguration:"
+                + "  class='class org.gradle.api.internal.artifacts.configurations.DefaultConfiguration'"
+                + "  name='name'"
+                + "  hashcode='"+ configuration.hashCode() +"'"
+                + "\nLocal Dependencies:"
+                + "\n   DefaultExternalModuleDependency{group='dumpgroup1', name='dumpname1', version='dumpversion1', configuration='default'}"
+                + "\nLocal Artifacts:"
+                + "\n   none"
+                + "\nAll Dependencies:"
+                + "\n   DefaultExternalModuleDependency{group='dumpgroup1', name='dumpname1', version='dumpversion1', configuration='default'}"
+                + "\n   DefaultExternalModuleDependency{group='dumpgroup2', name='dumpname2', version='dumpversion2', configuration='default'}"
+                + "\nAll Artifacts:"
+                + "\n   none"));
     }
 
     private void assertInvalidUserDataException(Executer executer) {

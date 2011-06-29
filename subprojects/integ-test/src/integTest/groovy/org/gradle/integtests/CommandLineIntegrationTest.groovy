@@ -91,7 +91,7 @@ public class CommandLineIntegrationTest {
     }
 
     @Test
-    public void failsWhenJavaHomeDoetNotPointToAJavaInstallation() {
+    public void failsWhenJavaHomeDoesNotPointToAJavaInstallation() {
         def failure = executer.withEnvironmentVars('JAVA_HOME': dist.testDir)
                 .withTasks('checkJavaHome')
                 .runWithFailure()
@@ -114,6 +114,45 @@ public class CommandLineIntegrationTest {
         executer.withUserHomeDir(null).
                 withTasks("checkDefaultGradleUserHome")
                 .run();
+    }
+
+    @Test
+    public void canSpecifySystemPropertyFromCommandLine() {
+        // the actual testing is done in the build script.
+        executer.withTasks("checkSystemProperty").withArguments('-DcustomSystemProperty=custom-value').run();
+    }
+
+    @Test
+    public void canSpecifySystemPropertyUsingGradleOptsEnvironmentVariable() {
+        // the actual testing is done in the build script.
+        executer.withTasks("checkSystemProperty").withEnvironmentVars("GRADLE_OPTS": '-DcustomSystemProperty=custom-value').run();
+    }
+
+    @Test
+    public void allowsReconfiguringProjectCacheDirWithRelativeDir() {
+        //given
+        dist.testFile("build.gradle").write "task foo << { println 'foo' }"
+
+        //when
+        executer.withTasks("foo").withArguments("--project-cache-dir", ".foo").run()
+
+        //then
+        dist.testFile(".foo").assertExists()
+    }
+
+    @Test
+    public void allowsReconfiguringProjectCacheDirWithAbsoluteDir() {
+        //given
+        dist.testFile("build.gradle").write "task foo << { println 'foo' }"
+        File someAbsoluteDir = dist.testFile("foo/bar/baz").absoluteFile
+        someAbsoluteDir.mkdirs()
+        assert someAbsoluteDir.absolute
+
+        //when
+        executer.withTasks("foo").withArguments("--project-cache-dir", someAbsoluteDir.toString()).run()
+
+        //then
+        assert someAbsoluteDir.exists()
     }
 
     @Test @Ignore

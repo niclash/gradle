@@ -15,13 +15,12 @@
  */
 package org.gradle.logging.internal;
 
-import org.gradle.api.UncheckedIOException;
 import org.gradle.api.logging.LogLevel;
 import org.gradle.api.logging.StandardOutputListener;
+import org.gradle.api.specs.Spec;
 import org.gradle.listener.ListenerBroadcast;
 
 import java.io.FileDescriptor;
-import java.io.IOException;
 import java.io.PrintStream;
 
 /**
@@ -32,15 +31,17 @@ public class OutputEventRenderer implements OutputEventListener, LoggingConfigur
     private final ListenerBroadcast<OutputEventListener> formatters = new ListenerBroadcast<OutputEventListener>(OutputEventListener.class);
     private final ListenerBroadcast<StandardOutputListener> stdoutListeners = new ListenerBroadcast<StandardOutputListener>(StandardOutputListener.class);
     private final ListenerBroadcast<StandardOutputListener> stderrListeners = new ListenerBroadcast<StandardOutputListener>(StandardOutputListener.class);
+    private final Spec<FileDescriptor> terminalDetector;
     private final Object lock = new Object();
     private final DefaultColorMap colourMap = new DefaultColorMap();
     private LogLevel logLevel = LogLevel.LIFECYCLE;
 
-    public OutputEventRenderer() {
+    public OutputEventRenderer(Spec<FileDescriptor> terminalDetector) {
         OutputEventListener stdOutChain = onNonError(new ProgressLogEventGenerator(new StyledTextOutputBackedRenderer(new StreamingStyledTextOutput(stdoutListeners.getSource())), false));
         formatters.add(stdOutChain);
         OutputEventListener stdErrChain = onError(new ProgressLogEventGenerator(new StyledTextOutputBackedRenderer(new StreamingStyledTextOutput(stderrListeners.getSource())), false));
         formatters.add(stdErrChain);
+        this.terminalDetector = terminalDetector;
     }
 
     public void colorStdOutAndStdErr(boolean colorOutput) {
@@ -50,7 +51,6 @@ public class OutputEventRenderer implements OutputEventListener, LoggingConfigur
     }
 
     public OutputEventRenderer addStandardOutputAndError() {
-        TerminalDetector terminalDetector = new TerminalDetector();
         boolean stdOutIsTerminal = terminalDetector.isSatisfiedBy(FileDescriptor.out);
         boolean stdErrIsTerminal = terminalDetector.isSatisfiedBy(FileDescriptor.err);
         if (stdOutIsTerminal) {
@@ -73,28 +73,12 @@ public class OutputEventRenderer implements OutputEventListener, LoggingConfigur
     }
 
     public OutputEventRenderer addStandardOutput(final Appendable out) {
-        addStandardOutputListener(new StandardOutputListener() {
-            public void onOutput(CharSequence output) {
-                try {
-                    out.append(output);
-                } catch (IOException e) {
-                    throw new UncheckedIOException(e);
-                }
-            }
-        });
+        addStandardOutputListener(new StreamBackedStandardOutputListener(out));
         return this;
     }
 
     public OutputEventRenderer addStandardError(final Appendable err) {
-        addStandardErrorListener(new StandardOutputListener() {
-            public void onOutput(CharSequence output) {
-                try {
-                    err.append(output);
-                } catch (IOException e) {
-                    throw new UncheckedIOException(e);
-                }
-            }
-        });
+        addStandardErrorListener(new StreamBackedStandardOutputListener(err));
         return this;
     }
 

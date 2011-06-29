@@ -16,13 +16,11 @@
 package org.gradle.api.artifacts;
 
 import groovy.lang.Closure;
-import org.apache.ivy.plugins.resolver.DependencyResolver;
 import org.gradle.api.file.FileCollection;
 import org.gradle.api.specs.Spec;
 import org.gradle.api.tasks.TaskDependency;
 
 import java.io.File;
-import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
@@ -169,7 +167,7 @@ public interface Configuration extends FileCollection {
     Set<File> files(Dependency... dependencies);
 
     /**
-     * Resolves this configuration lazyly. The resolve happens when the elements of the returned FileCollection get accessed the first time.
+     * Resolves this configuration lazily. The resolve happens when the elements of the returned FileCollection get accessed the first time.
      * This locates and downloads the files which make up this configuration. Only the resulting set of files belonging to the subset
      * of dependencies specified by the dependencySpec is contained in the FileCollection.
      *
@@ -188,7 +186,7 @@ public interface Configuration extends FileCollection {
     FileCollection fileCollection(Closure dependencySpecClosure);
 
     /**
-     * Resolves this configuration lazyly. The resolve happens when the elements of the returned FileCollection get accessed the first time.
+     * Resolves this configuration lazily. The resolve happens when the elements of the returned FileCollection get accessed the first time.
      * This locates and downloads the files which make up this configuration. Only the resulting set of files belonging to specified
      * dependencies is contained in the FileCollection.
      *
@@ -225,10 +223,10 @@ public interface Configuration extends FileCollection {
     /**
      * Returns a TaskDependency object containing dependencies on all tasks with the specified name from project
      * dependencies related to this configuration or one of its super configurations.  These other projects may be
-     * projects this configuration depends on or projects with a similarly named configuation that depend on this one
+     * projects this configuration depends on or projects with a similarly named configuration that depend on this one
      * based on the useDependOn argument.
      *
-     * @param useDependedOn if true, add tasks from project dependencies in this conifguration, otherwise use projects
+     * @param useDependedOn if true, add tasks from project dependencies in this configuration, otherwise use projects
      *                      from configurations with the same name that depend on this one.
      * @param taskName name of task to depend on
      * @return the populated TaskDependency object
@@ -242,19 +240,6 @@ public interface Configuration extends FileCollection {
      * @return a task dependency object
      */
     TaskDependency getBuildArtifacts();
-
-    /**
-     * Publishes the artifacts of this configuration to the specified repositories. This
-     * method is usually used only internally as the users use the associated upload tasks to
-     * upload the artifacts.
-     *
-     * @param publishRepositories The repositories to publish the artifacts to.
-     * @param descriptorDestination The destination dir for the descriptor file (if null no descriptor file is written).
-     *
-     * @see org.gradle.api.tasks.Upload
-     * @see #getUploadTaskName()
-     */
-    void publish(List<DependencyResolver> publishRepositories, File descriptorDestination);
 
     /**
      * Gets the set of dependencies directly contained in this configuration
@@ -373,9 +358,9 @@ public interface Configuration extends FileCollection {
 
     /**
      * Creates a copy of this configuration ignoring superconfigurations (see {@link #copy()} but filtering
-     * the dependencies using the dependencySpec.  The dependencySpec may be obtained from
-     * {@link org.gradle.api.artifacts.specs.DependencySpecs DependencySpecs.type()} like
-     * DependencySpecs.type(Type.EXTERNAL)
+     * the dependencies using the specified dependency spec. {@link org.gradle.api.artifacts.specs.Type}
+     * provides some predefined dependency specs.
+     *
      * @param dependencySpec filtering requirements
      * @return copy of this configuration
      */
@@ -383,9 +368,9 @@ public interface Configuration extends FileCollection {
 
     /**
      * Creates a copy of this configuration with dependencies from superconfigurations (see {@link #copyRecursive()})
-     *  but filtering the dependencies using the dependencySpec.  The dependencySpec may be obtained from
-     * {@link org.gradle.api.artifacts.specs.DependencySpecs DependencySpecs.type()} like
-     * DependencySpecs.type(Type.EXTERNAL)
+     * but filtering the dependencies using the dependencySpec. {@link org.gradle.api.artifacts.specs.Type}
+     * provides some predefined dependency specs.
+     *
      * @param dependencySpec filtering requirements
      * @return copy of this configuration
      */

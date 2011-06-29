@@ -15,40 +15,39 @@
  */
 package org.gradle.api.internal.file;
 
+import groovy.lang.Closure;
 import org.gradle.api.InvalidUserDataException;
-import org.gradle.api.specs.Spec;
-import org.gradle.api.file.FileCollection;
-import org.gradle.api.file.SourceDirectorySet;
+import org.gradle.api.file.DirectoryTree;
 import org.gradle.api.file.FileTreeElement;
+import org.gradle.api.file.SourceDirectorySet;
+import org.gradle.api.internal.file.collections.DirectoryFileTree;
+import org.gradle.api.internal.file.collections.FileCollectionResolveContext;
+import org.gradle.api.specs.Spec;
 import org.gradle.api.tasks.util.PatternFilterable;
 import org.gradle.api.tasks.util.PatternSet;
+import org.gradle.util.GUtil;
 
 import java.io.File;
-import java.util.Collection;
-import java.util.LinkedHashSet;
-import java.util.Set;
-
-import groovy.lang.Closure;
+import java.util.*;
 
 public class DefaultSourceDirectorySet extends CompositeFileTree implements SourceDirectorySet {
-    private final PathResolvingFileCollection srcDirs;
+    private final List<Object> source = new ArrayList<Object>();
     private final String displayName;
-    private final FileResolver resolver;
-    private final PatternFilterable patterns = new PatternSet();
-    private final PatternFilterable filter = new PatternSet();
-
-    public DefaultSourceDirectorySet(FileResolver fileResolver) {
-        this("source set", fileResolver);
-    }
+    private final FileResolver fileResolver;
+    private final PatternSet patterns = new PatternSet();
+    private final PatternSet filter = new PatternSet();
 
     public DefaultSourceDirectorySet(String displayName, FileResolver fileResolver) {
         this.displayName = displayName;
-        this.resolver = fileResolver;
-        srcDirs = new PathResolvingFileCollection(fileResolver, null);
+        this.fileResolver = fileResolver;
     }
 
     public Set<File> getSrcDirs() {
-        return srcDirs.getFiles();
+        Set<File> dirs = new LinkedHashSet<File>();
+        for (DirectoryTree tree : getSrcDirTrees()) {
+            dirs.add(tree.getDir());
+        }
+        return dirs;
     }
 
     public Set<String> getIncludes() {
@@ -113,12 +112,40 @@ public class DefaultSourceDirectorySet extends CompositeFileTree implements Sour
         return filter;
     }
 
+    public Set<DirectoryTree> getSrcDirTrees() {
+        // This implementation is broken. It does not consider include and exclude patterns
+        Map<File, DirectoryTree> trees = new LinkedHashMap<File, DirectoryTree>();
+        for (DirectoryTree tree : doGetSrcDirTrees()) {
+            if (!trees.containsKey(tree.getDir())) {
+                trees.put(tree.getDir(), tree);
+            }
+        }
+        return new LinkedHashSet<DirectoryTree>(trees.values());
+    }
+
+    private Set<DirectoryTree> doGetSrcDirTrees() {
+        Set<DirectoryTree> result = new LinkedHashSet<DirectoryTree>();
+        for (Object path : source) {
+            if (path instanceof SourceDirectorySet) {
+                SourceDirectorySet nested = (SourceDirectorySet) path;
+                result.addAll(nested.getSrcDirTrees());
+            } else {
+                File srcDir = fileResolver.resolve(path);
+                if (srcDir.exists() && !srcDir.isDirectory()) {
+                    throw new InvalidUserDataException(String.format("Source directory '%s' is not a directory.", srcDir));
+                }
+                result.add(new DirectoryFileTree(srcDir, patterns));
+            }
+        }
+        return result;
+    }
+
     @Override
-    protected void addSourceCollections(Collection<FileCollection> sources) {
-        for (File sourceDir : getExistingSourceDirs()) {
-            DefaultConfigurableFileTree fileset = new DefaultConfigurableFileTree(sourceDir, resolver, null);
-            fileset.getPatternSet().copyFrom(patterns);
-            sources.add(fileset.matching(filter));
+    public void resolve(FileCollectionResolveContext context) {
+        for (DirectoryTree directoryTree : getSrcDirTrees()) {
+            if (directoryTree.getDir().isDirectory()) {
+                context.add(((DirectoryFileTree) directoryTree).filter(filter));
+            }
         }
     }
 
@@ -127,31 +154,26 @@ public class DefaultSourceDirectorySet extends CompositeFileTree implements Sour
         return displayName;
     }
 
-    protected Set<File> getExistingSourceDirs() {
-        Set<File> existingSourceDirs = new LinkedHashSet<File>();
-        for (File srcDir : srcDirs) {
-            if (srcDir.isDirectory()) {
-                existingSourceDirs.add(srcDir);
-            } else if (srcDir.exists()) {
-                throw new InvalidUserDataException(String.format("Source directory '%s' is not a directory.", srcDir));
-            }
-        }
-        return existingSourceDirs;
-    }
-
     public SourceDirectorySet srcDir(Object srcDir) {
-        srcDirs.from(srcDir);
+        source.add(srcDir);
         return this;
     }
 
     public SourceDirectorySet srcDirs(Object... srcDirs) {
-        this.srcDirs.from(srcDirs);
+        for (Object srcDir : srcDirs) {
+            source.add(srcDir);
+        }
         return this;
     }
 
     public SourceDirectorySet setSrcDirs(Iterable<Object> srcPaths) {
-        srcDirs.clear();
-        srcDirs.from(srcPaths);
+        source.clear();
+        GUtil.addToCollection(source, srcPaths);
+        return this;
+    }
+
+    public SourceDirectorySet source(SourceDirectorySet source) {
+        this.source.add(source);
         return this;
     }
 }

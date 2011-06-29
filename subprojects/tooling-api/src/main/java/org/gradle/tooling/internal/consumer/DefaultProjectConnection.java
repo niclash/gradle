@@ -15,86 +15,60 @@
  */
 package org.gradle.tooling.internal.consumer;
 
-import org.gradle.tooling.GradleConnectionException;
-import org.gradle.tooling.ProjectConnection;
-import org.gradle.tooling.ResultHandler;
-import org.gradle.tooling.UnsupportedVersionException;
-import org.gradle.tooling.internal.protocol.ConnectionVersion2;
-import org.gradle.tooling.internal.protocol.ProjectVersion2;
-import org.gradle.tooling.internal.protocol.ResultHandlerVersion1;
-import org.gradle.tooling.internal.protocol.eclipse.EclipseProjectVersion2;
+import org.gradle.tooling.*;
+import org.gradle.tooling.internal.protocol.BuildableProjectVersion1;
+import org.gradle.tooling.internal.protocol.HierarchicalProjectVersion1;
+import org.gradle.tooling.internal.protocol.ProjectVersion3;
+import org.gradle.tooling.internal.protocol.eclipse.EclipseProjectVersion3;
+import org.gradle.tooling.internal.protocol.eclipse.HierarchicalEclipseProjectVersion1;
+import org.gradle.tooling.model.BuildableProject;
+import org.gradle.tooling.model.HierarchicalProject;
 import org.gradle.tooling.model.Project;
 import org.gradle.tooling.model.eclipse.EclipseProject;
-import org.gradle.util.UncheckedException;
+import org.gradle.tooling.model.eclipse.HierarchicalEclipseProject;
 
 import java.util.HashMap;
 import java.util.Map;
-import java.util.concurrent.ArrayBlockingQueue;
-import java.util.concurrent.BlockingQueue;
-import java.util.concurrent.atomic.AtomicBoolean;
 
 class DefaultProjectConnection implements ProjectConnection {
-    private final ConnectionVersion2 connection;
-    private final Map<Class<? extends Project>, Class<? extends ProjectVersion2>> modelTypeMap = new HashMap<Class<? extends Project>, Class<? extends ProjectVersion2>>();
+    private final AsyncConnection connection;
+    private final Map<Class<? extends Project>, Class<? extends ProjectVersion3>> modelTypeMap = new HashMap<Class<? extends Project>, Class<? extends ProjectVersion3>>();
     private ProtocolToModelAdapter adapter;
-    private AtomicBoolean closed = new AtomicBoolean();
+    private final ConnectionParameters parameters;
 
-    public DefaultProjectConnection(ConnectionVersion2 connection, ProtocolToModelAdapter adapter) {
+    public DefaultProjectConnection(AsyncConnection connection, ProtocolToModelAdapter adapter, ConnectionParameters parameters) {
         this.connection = connection;
+        this.parameters = parameters;
         this.adapter = adapter;
-        modelTypeMap.put(Project.class, ProjectVersion2.class);
-        modelTypeMap.put(EclipseProject.class, EclipseProjectVersion2.class);
+        modelTypeMap.put(Project.class, ProjectVersion3.class);
+        modelTypeMap.put(BuildableProject.class, BuildableProjectVersion1.class);
+        modelTypeMap.put(HierarchicalProject.class, HierarchicalProjectVersion1.class);
+        modelTypeMap.put(HierarchicalEclipseProject.class, HierarchicalEclipseProjectVersion1.class);
+        modelTypeMap.put(EclipseProject.class, EclipseProjectVersion3.class);
     }
 
     public void close() {
-        if (!closed.getAndSet(true)) {
-            connection.stop();
-        }
+        connection.stop();
     }
 
     public <T extends Project> T getModel(Class<T> viewType) {
-        if (closed.get()) {
-            throw new IllegalStateException("This connection has been closed.");
-        }
-
-        final BlockingQueue<Object> queue = new ArrayBlockingQueue<Object>(1);
-        getModel(viewType, new ResultHandler<T>() {
-            public void onComplete(T result) {
-                queue.add(result);
-            }
-
-            public void onFailure(GradleConnectionException failure) {
-                queue.add(failure);
-            }
-        });
-
-        Object result;
-        try {
-            result = queue.take();
-        } catch (InterruptedException e) {
-            throw UncheckedException.asUncheckedException(e);
-        }
-
-        if (result instanceof GradleConnectionException) {
-            throw (GradleConnectionException) result;
-        }
-        return viewType.cast(result);
+        return model(viewType).get();
     }
 
     public <T extends Project> void getModel(final Class<T> viewType, final ResultHandler<? super T> handler) {
-        connection.getModel(mapToProtocol(viewType), new ResultHandlerVersion1<ProjectVersion2>() {
-            public void onComplete(ProjectVersion2 result) {
-                handler.onComplete(adapter.adapt(viewType, result));
-            }
-
-            public void onFailure(Throwable failure) {
-                handler.onFailure(new GradleConnectionException(String.format("Could not fetch model of type '%s' from %s.", viewType.getSimpleName(), connection.getDisplayName()), failure));
-            }
-        });
+        model(viewType).get(handler);
     }
 
-    private Class<? extends ProjectVersion2> mapToProtocol(Class<? extends Project> viewType) {
-        Class<? extends ProjectVersion2> protocolViewType = modelTypeMap.get(viewType);
+    public BuildLauncher newBuild() {
+        return new DefaultBuildLauncher(connection, parameters);
+    }
+
+    public <T extends Project> ModelBuilder<T> model(Class<T> modelType) {
+        return new DefaultModelBuilder<T>(modelType, mapToProtocol(modelType), connection, adapter, parameters);
+    }
+
+    private Class<? extends ProjectVersion3> mapToProtocol(Class<? extends Project> viewType) {
+        Class<? extends ProjectVersion3> protocolViewType = modelTypeMap.get(viewType);
         if (protocolViewType == null) {
             throw new UnsupportedVersionException(String.format("Model of type '%s' is not supported.", viewType.getSimpleName()));
         }

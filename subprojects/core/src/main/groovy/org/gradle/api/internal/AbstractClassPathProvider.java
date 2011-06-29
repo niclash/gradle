@@ -16,12 +16,10 @@
 
 package org.gradle.api.internal;
 
-import org.gradle.api.GradleException;
 import org.gradle.api.UncheckedIOException;
 import org.gradle.util.ClasspathUtil;
 
 import java.io.File;
-import java.net.URI;
 import java.net.URISyntaxException;
 import java.net.URL;
 import java.util.*;
@@ -30,22 +28,25 @@ import java.util.regex.Pattern;
 public abstract class AbstractClassPathProvider implements ClassPathProvider, GradleDistributionLocator {
     private final List<Pattern> all = Arrays.asList(Pattern.compile(".+"));
     private final Map<String, List<Pattern>> classPaths = new HashMap<String, List<Pattern>>();
-    private final Scanner pluginLibs;
     private final Scanner runtimeLibs;
+    private final Scanner pluginLibs;
+    private final Scanner coreImplLibs;
     private final File gradleHome;
 
     protected AbstractClassPathProvider() {
-        File codeSource = getClasspathForClass(DefaultClassPathProvider.class);
+        File codeSource = ClasspathUtil.getClasspathForClass(DefaultClassPathProvider.class);
         if (codeSource.isFile()) {
             // Loaded from a JAR - assume we're running from the distribution
             gradleHome = codeSource.getParentFile().getParentFile();
             runtimeLibs = new DirScanner(new File(gradleHome + "/lib"));
             pluginLibs = new DirScanner(new File(gradleHome + "/lib/plugins"));
+            coreImplLibs = new DirScanner(new File(gradleHome + "/lib/core-impl"));
         } else {
             // Loaded from a classes dir - assume we're running from the ide or tests
             gradleHome = null;
             runtimeLibs = new ClassPathScanner(codeSource);
             pluginLibs = runtimeLibs;
+            coreImplLibs = runtimeLibs;
         }
     }
 
@@ -67,34 +68,26 @@ public abstract class AbstractClassPathProvider implements ClassPathProvider, Gr
 
     public Set<File> findClassPath(String name) {
         Set<File> matches = new LinkedHashSet<File>();
+        if (name.equals("GRADLE_RUNTIME")) {
+            runtimeLibs.find(all, matches);
+            return matches;
+        }
         if (name.equals("GRADLE_PLUGINS")) {
             pluginLibs.find(all, matches);
             return matches;
         }
-        if (name.equals("GRADLE_RUNTIME")) {
-            runtimeLibs.find(all, matches);
+        if (name.equals("GRADLE_CORE_IMPL")) {
+            coreImplLibs.find(all, matches);
             return matches;
         }
         List<Pattern> classPathPatterns = classPaths.get(name);
         if (classPathPatterns != null) {
             runtimeLibs.find(classPathPatterns, matches);
             pluginLibs.find(classPathPatterns, matches);
+            coreImplLibs.find(classPathPatterns, matches);
             return matches;
         }
         return null;
-    }
-
-    public static File getClasspathForClass(Class<?> targetClass) {
-        URI location;
-        try {
-            location = targetClass.getProtectionDomain().getCodeSource().getLocation().toURI();
-        } catch (URISyntaxException e) {
-            throw new UncheckedIOException(e);
-        }
-        if (!location.getScheme().equals("file")) {
-            throw new GradleException(String.format("Cannot determine Gradle home using codebase '%s'.", location));
-        }
-        return new File(location.getPath());
     }
 
     private static boolean matches(Iterable<Pattern> patterns, String name) {
